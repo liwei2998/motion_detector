@@ -1,6 +1,6 @@
 # motion_detector
-
-##purpose:
+## purpose:
 Using usb_cam ROS Package and cv_bridge for cv related process
-##source:
+
+## source:
 https://blog.techbridge.cc/2016/11/26/ros-motion-detector/
