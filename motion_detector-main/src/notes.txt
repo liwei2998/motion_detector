@@ -1,0 +1,2 @@
+1. The algorithm only detects the input shape (su.rightA). If we look vertically to the picture,
+the shape will not deform. Else, we may need to change the thresh in su.rightA (motion_detection -- contour selection lines 226-238).
