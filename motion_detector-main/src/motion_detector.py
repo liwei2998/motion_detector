@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 import math
 import shapeUtil as su
 import time
-import tf
+from numpy.linalg import inv
+from shapely.geometry import LineString
 
 kernel_elliptic_7 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
 kernel_elliptic_15 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
@@ -184,6 +185,19 @@ class GetTrans:
         # pts_src = pts_src / 1.05  # convert pixels to meters, can be changed for different sized "H"
         self.pts_src = pts_src[::-1]  # reverse the order of the array
 
+    def line_intersect(self,x1,y1, x2, y2, x3, y3, x4, y4):
+        """ returns a (x, y) tuple or None if there is no intersection """
+        # x1,x2 for L1; x3,x4 for L2
+        d = (x1-x2)*(y3-y4)-(y1-y2)*(x3-x4)
+
+        if d == 0:
+            return 0
+        x = ((x1*y2-y1*x2)*(x3-x4)-(x1-x2)*(x3*y4-y3*x4))/d
+        y = ((x1*y2-y1*x2)*(y3-y4)-(y1-y2)*(x3*y4-y3*x4))/d
+
+
+        return (x, y)
+
 
     def detect(self, frame):
 
@@ -229,39 +243,37 @@ class GetTrans:
                 # cv2.circle(frame, pts_dst[-1], 3, (i*30, 0, 255-i*20), 3)
 
             # Correction method for contour points.  Need to make sure the points are mapped correctly
-            # print pts_dst[0]
             pts_dst = su.sortContour(
                 np.array((self.red_point[0] + pts_dst[0][0], self.red_point[1] + pts_dst[0][1])), pts_dst)
 
-            # cv2.circle(frame, pts_dst[0], 7, (0, 255, 0), 4)
-            # cv2.circle(frame, pts_dst[1], 7, (200, 0, 200), 4)
+            cv2.circle(frame, pts_dst[0], 7, (0, 255, 0), 4)
+            cv2.circle(frame, pts_dst[1], 7, (200, 0, 200), 4)
+            # print 'pts',pts_dst
 
-            # print 'pts dst',pts_dst
-
-            #draw the center
-            x_mean=0.0
-            y_mean=0.0
-            for i in range(len(pts_dst)):
-                x_mean = x_mean + pts_dst[i][0]
-                y_mean = y_mean + pts_dst[i][1]
-            x_mean = x_mean/len(pts_dst)
-            y_mean = y_mean/len(pts_dst)
-
-            center = [int(x_mean),int(y_mean)]
-            cv2.circle(frame, (center[0], center[1]), 5, (0, 0, 255), 2)
-
+            center = self.line_intersect(pts_dst[0][0],pts_dst[0][1],pts_dst[2][0],pts_dst[2][1],
+                                         pts_dst[1][0],pts_dst[1][1],pts_dst[3][0],pts_dst[3][1])
+            # print 'center',center
+            cv2.circle(frame, (int(center[0]), int(center[1])), 5, (0, 0, 255), 2)
 
             for i in range(0, len(best_approx)):
                 cv2.circle(frame, pts_dst[i], 3, (i * 30, 0, 255 - i * 20), 3)
 
-            h, status = cv2.findHomography(np.array(pts_src).astype(float), np.array(pts_dst).astype(float))
-            # print 'h',h
+            h, status = cv2.findHomography(np.array(pts_src).astype(float), np.array(pts_dst).astype(float))            # print 'h',h
             # print 'status',status
             #warped = cv2.warpPerspective(base, h, (base.shape[1], base.shape[0]))
             #cv2.imshow('warped', warped)
-            
+
             (R, T) = su.decHomography(A, h)
             Rot = su.decRotation(R)
+            # print 'R',R
+            # print 'T',T
+            # center = center - np.array(T)
+            # inv_R = inv(np.matrix(R))
+            # center = center.reshape(3,1)
+            # center = np.dot(inv_R,center)
+            #
+            # print 'center',center
+
             zR = np.matrix([[math.cos(Rot[2]), -math.sin(Rot[2])], [math.sin(Rot[2]), math.cos(Rot[2])]])
             cv2.putText(imgC, 'rX: {:0.2f} rY: {:0.2f} rZ: {:0.2f}'.format(Rot[0] * 180 / np.pi, Rot[1] * 180 / np.pi, Rot[2] * 180 / np.pi), (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
             cv2.putText(imgC, 'tX: {:0.2f} tY: {:0.2f} tZ: {:0.2f}'.format(T[0, 0], T[0, 1], T[0, 2]), (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
