@@ -7,6 +7,7 @@ import math
 import shapeUtil as su
 import time
 from numpy.linalg import inv
+import math
 
 kernel_elliptic_7 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
 kernel_elliptic_15 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
@@ -303,7 +304,7 @@ class CornerMatch:
 
         # A rectangular polygon to segment the lane area and discarded other irrelevant parts in the image
         # Defined by three (x, y) coordinates
-        polygons = np.array([[(round(width)/2, 0), (round(width/2), round(height/2)), (round(width*3/4),round(height/2)), (round(width*3/4), 0)]],dtype=np.int32)
+        polygons = np.array([[(round(width)/2, round(height/8)), (round(width/2), round(height/2)), (round(width*3/4),round(height/2)), (round(width*3/4), round(height/8))]],dtype=np.int32)
 
         mask = np.zeros_like(image)
         cv2.fillPoly(mask, polygons, 255)  ## 255 is the mask color
@@ -320,6 +321,12 @@ class CornerMatch:
         y2 = int(y1 * (3/5)) # Setting y2 at 3/5th from y1
         x1 = int((y1 - intercept) / slope) # Deriving from y = mx + c
         x2 = int((y2 - intercept) / slope)
+
+        if slope < 0.01:
+            y1 = int(intercept)
+            y2 = int(intercept*3/5)
+            x1 = image.shape[1]
+            x2 = int(x1 * (3/5))
 
         return np.array([x1, y1, x2, y2])
 
@@ -347,15 +354,24 @@ class CornerMatch:
         left_avg = np.average(left, axis = 0)
         right_avg = np.average(right, axis = 0)
 
-        print 'left',left_avg
-        print 'right',right_avg
+        # print 'left',math.isnan(left_avg)
+        # print 'right',right_avg
 
-        # Find x1, y1, x2, y2 coordinates for left & right lines
-        # left_line = self.get_coordinates(image, left_avg)
-        right_line = self.get_coordinates(image, right_avg)
-
-        # return np.array([left_line, right_line])
-        return np.array([right_line])
+        # print 'len left',len(left)
+        # print 'len right', len(right)
+        if len(left)==0 and len(right)==0:
+            return np.array([])
+        elif len(left)==0 and len(right)>0:
+            right_line = self.get_coordinates(image, right_avg)
+            return np.array([right_line])
+        elif len(left)>0 and len(right)==0:
+            left_line = self.get_coordinates(image, left_avg)
+            return np.array([left_line])
+        else:
+            # Find x1, y1, x2, y2 coordinates for left & right lines
+            left_line = self.get_coordinates(image, left_avg)
+            right_line = self.get_coordinates(image, right_avg)
+            return np.array([left_line, right_line])
 
     # Draws lines of given thickness over an image
     def draw_lines(self,image, lines, thickness):
@@ -364,10 +380,11 @@ class CornerMatch:
         line_image = np.zeros_like(image)
         color=[0, 0, 255]
 
+
         if lines is not None:
+            print 'line',lines
             for x1, y1, x2, y2 in lines:
                 cv2.line(line_image, (x1, y1), (x2, y2), color, thickness)
-
 
         # Merge the image with drawn lines onto the original.
         combined_image = cv2.addWeighted(image, 0.8, line_image, 1.0, 0.0)
