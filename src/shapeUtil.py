@@ -4,7 +4,6 @@ import numpy as np
 import math
 # Gets passed an approx contour list and finds if all the angles are 90 degrees
 
-
 def rightA(approx, thresh):
     right = True
     error = 0
@@ -107,11 +106,11 @@ def sortContour(red_point, pts_dst):
     # print '########################################'
     return pts_dst
 
+#########################################
 # This decomposes the homogrpahy matrix
 # Takes two inputs
 # A - intrinsic camera matrix
 # H - homography between two 2D points
-
 
 def decHomography(A, H):
     H = np.transpose(H)
@@ -155,3 +154,15 @@ def decRotation(R):
     y = math.atan2(-R[2, 0], math.sqrt(R[2, 1] * R[2, 1] + R[2, 2] * R[2, 2]))
     z = math.atan2(R[1, 0], R[0, 0])
     return (x, y, z)
+
+def line_intersect(x1, y1, x2, y2, x3, y3, x4, y4):
+        """ returns a (x, y) tuple or None if there is no intersection """
+        # (x1,y1,),(x2,y2) for L1; (x3,y3),(x4,y4) for L2
+        d = (x1-x2)*(y3-y4)-(y1-y2)*(x3-x4)
+
+        if d == 0:
+            return 0
+        else:
+            x = ((x1*y2-y1*x2)*(x3-x4)-(x1-x2)*(x3*y4-y3*x4))/d
+            y = ((x1*y2-y1*x2)*(y3-y4)-(y1-y2)*(x3*y4-y3*x4))/d
+            return (x, y)
