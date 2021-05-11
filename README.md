@@ -8,5 +8,5 @@ https://blog.techbridge.cc/2016/11/26/ros-motion-detector/
 ## liwei-patch-1 updates:
 add center of paper to camera frame.
 
-## liwei-patch-2 update:
+## liwei-patch-2 updates:
 add houghline transformation.
