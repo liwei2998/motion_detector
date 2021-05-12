@@ -18,16 +18,20 @@ if __name__ == '__main__':
     # detector = Motion()
     # Read in the image.
 
-    for i in range(100):
+    for i in range(45,47):
         # print 'i',i
         img_src = cv2.imread('corner_match_night/left'+"{0:0>4}".format(i)+'.jpg')
         print 'str','corner_match_night/left'+"{0:0>4}".format(i)+'.jpg'
         motion_detector = cl.CornerMatch()
 
-        color = 'green'
+        color1 = 'white'
+        color2 = 'green'
         # #step1: color filter and canny
-        img_src1 = motion_detector.filter(img_src,color)
+        img_src1 = motion_detector.filter(img_src,color1)
         cv2.imshow('color filter',img_src1)
+        img_src2 = motion_detector.filter(img_src,color2)
+        cv2.imshow('color filter',img_src2)
+
         result_img = motion_detector.detect(img_src1)
         cv2.imshow("canny detection", result_img)
 

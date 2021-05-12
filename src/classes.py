@@ -315,7 +315,7 @@ class CornerMatch:
             masked_image = cv2.bitwise_and(image, mask)
 
             return masked_image
-            
+
         else:
             return image
 
@@ -327,9 +327,9 @@ class CornerMatch:
         x1 = int((y1 - intercept) / slope) # Deriving from y = mx + c
         x2 = int((y2 - intercept) / slope)
 
-        if slope < 0.01:
+        if abs(slope) < 0.001:
             y1 = int(intercept)
-            y2 = int(intercept*3/5)
+            y2 = int(intercept)
             x1 = image.shape[1]
             x2 = int(x1 * (3/5))
 
@@ -349,6 +349,9 @@ class CornerMatch:
             slope = params[0]
             y_intercept = params[1]
 
+            # print 'slope',slope
+            # print 'y_intercept',y_intercept
+
             if slope < 0:
                 left.append((slope, y_intercept)) #Negative slope = left lane
             else:
@@ -359,11 +362,10 @@ class CornerMatch:
         left_avg = np.average(left, axis = 0)
         right_avg = np.average(right, axis = 0)
 
-        # print 'left',math.isnan(left_avg)
+        # print 'lines',lines
+        # print 'left',left_avg
         # print 'right',right_avg
 
-        # print 'len left',len(left)
-        # print 'len right', len(right)
         if len(left)==0 and len(right)==0:
             return np.array([])
         elif len(left)==0 and len(right)>0:
