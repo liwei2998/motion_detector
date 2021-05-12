@@ -381,23 +381,37 @@ class CornerMatch:
             return np.array([left_line, right_line])
 
     # Draws lines of given thickness over an image
-    def draw_lines(self,image, lines, thickness):
+    def draw_lines(self,image, lines1, lines2,thickness, color1, color2):
 
-        print(lines)
+        # print(lines)
         line_image = np.zeros_like(image)
-        color=[0, 0, 255]
+        # color=[0, 0, 255]
 
 
-        if lines is not None:
+        if lines1 is not None:
             # print 'line',lines
-            for x1, y1, x2, y2 in lines:
-                cv2.line(line_image, (x1, y1), (x2, y2), color, thickness)
+            for x1, y1, x2, y2 in lines1:
+                cv2.line(line_image, (x1, y1), (x2, y2), color1, thickness)
+        if lines2 is not None:
+            # print 'line',lines
+            for x1, y1, x2, y2 in lines2:
+                cv2.line(line_image, (x1, y1), (x2, y2), color2, thickness)
 
         # Merge the image with drawn lines onto the original.
         combined_image = cv2.addWeighted(image, 0.8, line_image, 1.0, 0.0)
 
         return combined_image
 
+    def get_intersection_point(self,lines):
+        #get two lines intersection point
+        if len(lines) == 2:
+            intersection = su.line_intersect(lines[0][0],lines[0][1],
+                                             lines[0][2],lines[0][3],
+                                             lines[1][0],lines[1][1],
+                                             lines[1][2],lines[1][3])
+            return intersection
+        else:
+            return None
 
     def hsv_calc(self,frame):
 
@@ -443,12 +457,12 @@ class CornerMatch:
 
         #hsv color
         if color == 'green':
-            lower = (20,47,0)
-            upper = (90,175,147)
+            lower = (19,48,0)
+            upper = (70,255,255)
 
         elif color == 'white':
-            lower = (19,0,140)
-            upper = (155,76,243)
+            lower = (46,0,106)
+            upper = (102,255,255)
 
         elif color == 'red':
             lower = (0,0,0)
@@ -464,3 +478,24 @@ class CornerMatch:
         result = cv2.cvtColor(result,cv2.COLOR_HSV2BGR)
 
         return result
+
+    def get_white_line(self,img1,img2):
+        kernel = np.ones((1,1),np.uint8)
+        # erosion1 = cv2.erode(img,kernel,iterations = 1)
+        img_dilate1 = cv2.dilate(img1,kernel,iterations = 1)
+
+        #green mask
+        lower = (10,10,10)
+        upper = (255,255,255)
+        mask1 = cv2.inRange(img2, lower, upper)
+        kernel = np.ones((9,9),np.uint8)
+        mask2 = cv2.dilate(mask1,kernel,iterations = 5)
+        # cv2.imshow('mask',mask2)
+
+        result_img1 = cv2.bitwise_and(img_dilate1, mask2)
+        # cv2.imshow('and',result_img1)
+
+        result_img2 = cv2.bitwise_xor(img_dilate1,result_img1)
+        # cv2.imshow('or',result_img2)
+
+        return result_img2
