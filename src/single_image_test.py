@@ -17,21 +17,23 @@ import copy
 if __name__ == '__main__':
     # detector = Motion()
     # Read in the image.
-    # img_src = cv2.imread("corner_match_night/left0199.jpg")
-    # img_src = cv2.imread("corner_match_night/left0257.jpg")
-    img_src = cv2.imread("corner_match_night/left0047.jpg")
-    for i in range(260):
-        print 'i',i
+
+    for i in range(100):
+        # print 'i',i
         img_src = cv2.imread('corner_match_night/left'+"{0:0>4}".format(i)+'.jpg')
         print 'str','corner_match_night/left'+"{0:0>4}".format(i)+'.jpg'
         motion_detector = cl.CornerMatch()
-        #step1: image process and canny
-        result_img = motion_detector.detect(img_src)
-        cv2.imshow("result_img", result_img)
+
+        color = 'green'
+        # #step1: color filter and canny
+        img_src1 = motion_detector.filter(img_src,color)
+        cv2.imshow('color filter',img_src1)
+        result_img = motion_detector.detect(img_src1)
+        cv2.imshow("canny detection", result_img)
 
         #step2: roi mask
-        result_img2 = motion_detector.ROI_mask(result_img)
-        cv2.imshow('result_img2',result_img2)
+        result_img2 = motion_detector.ROI_mask(result_img,color)
+        cv2.imshow('roi region',result_img2)
 
         #step3: houghline transform
         lines = cv2.HoughLinesP(result_img2,
@@ -43,21 +45,30 @@ if __name__ == '__main__':
                                 maxLineGap=25       #Max gap allowed between points on the same line
                                 )
         # print 'lines',lines
-
+        if lines is None:
+            continue
         averaged_lines = motion_detector.avg_lines(img_src, lines)              #Average the Hough lines as left or right lanes
         combined_image = motion_detector.draw_lines(img_src, averaged_lines, 5)
-        cv2.imshow('image'+str(i),combined_image)
+        cv2.imshow('houghline transform',combined_image)
 
         cv2.waitKey(0)
 
+
+    # img_src = cv2.imread("corner_match_night/left0199.jpg")
+    # img_src = cv2.imread("corner_match_night/left0257.jpg")
+    # img_src = cv2.imread("corner_match_night/left0088.jpg")
     # motion_detector = cl.CornerMatch()
-    # #step1: image process and canny
-    # result_img = motion_detector.detect(img_src)
-    # cv2.imshow("result_img", result_img)
+    # cv2.imshow('src image',img_src)
+    # color = 'green'
+    # # #step1: color filter and canny
+    # img_src1 = motion_detector.filter(img_src,color)
+    # cv2.imshow('color filter',img_src1)
+    # result_img = motion_detector.detect(img_src1)
+    # cv2.imshow("canny detection", result_img)
     #
     # #step2: roi mask
-    # result_img2 = motion_detector.ROI_mask(result_img)
-    # cv2.imshow('result_img2',result_img2)
+    # result_img2 = motion_detector.ROI_mask(result_img,color)
+    # cv2.imshow('roi region',result_img2)
     #
     # #step3: houghline transform
     # lines = cv2.HoughLinesP(result_img2,
@@ -72,6 +83,6 @@ if __name__ == '__main__':
     #
     # averaged_lines = motion_detector.avg_lines(img_src, lines)              #Average the Hough lines as left or right lanes
     # combined_image = motion_detector.draw_lines(img_src, averaged_lines, 5)
-    # cv2.imshow('image3',combined_image)
+    # cv2.imshow('houghline transform',combined_image)
     #
     # cv2.waitKey(0)

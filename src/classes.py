@@ -297,22 +297,27 @@ class CornerMatch:
         imgC = cv2.morphologyEx(imgC, cv2.MORPH_CLOSE, (3, 3))
         return imgC
 
-    def ROI_mask(self,image):
+    def ROI_mask(self,image,color):
         #add mask for roi
         height = image.shape[0]
         width = image.shape[1]
 
+        #roi varies according to the detected colors
         # A rectangular polygon to segment the lane area and discarded other irrelevant parts in the image
         # Defined by three (x, y) coordinates
-        polygons = np.array([[(round(width)/2, round(height/8)), (round(width/2), round(height/2)), (round(width*3/4),round(height/2)), (round(width*3/4), round(height/8))]],dtype=np.int32)
+        if color == 'white':
+            polygons = np.array([[(round(width)/2, round(height/8)), (round(width/2), round(height/2)), (round(width*3/4),round(height/2)), (round(width*3/4), round(height/8))]],dtype=np.int32)
 
-        mask = np.zeros_like(image)
-        cv2.fillPoly(mask, polygons, 255)  ## 255 is the mask color
+            mask = np.zeros_like(image)
+            cv2.fillPoly(mask, polygons, 255)  ## 255 is the mask color
 
-        # Bitwise AND between canny image and mask image
-        masked_image = cv2.bitwise_and(image, mask)
+            # Bitwise AND between canny image and mask image
+            masked_image = cv2.bitwise_and(image, mask)
 
-        return masked_image
+            return masked_image
+            
+        else:
+            return image
 
     def get_coordinates(self,image, params):
 
@@ -382,7 +387,7 @@ class CornerMatch:
 
 
         if lines is not None:
-            print 'line',lines
+            # print 'line',lines
             for x1, y1, x2, y2 in lines:
                 cv2.line(line_image, (x1, y1), (x2, y2), color, thickness)
 
@@ -390,3 +395,70 @@ class CornerMatch:
         combined_image = cv2.addWeighted(image, 0.8, line_image, 1.0, 0.0)
 
         return combined_image
+
+
+    def hsv_calc(self,frame):
+
+        def nothing(x):
+            pass
+
+        cv2.namedWindow("Trackbars",)
+        cv2.createTrackbar("lh","Trackbars",0,179,nothing)
+        cv2.createTrackbar("ls","Trackbars",0,255,nothing)
+        cv2.createTrackbar("lv","Trackbars",0,255,nothing)
+        cv2.createTrackbar("uh","Trackbars",179,179,nothing)
+        cv2.createTrackbar("us","Trackbars",255,255,nothing)
+        cv2.createTrackbar("uv","Trackbars",255,255,nothing)
+        while True:
+            #frame = cv2.imread('candy.jpg')
+            height, width = frame.shape[:2]
+            #frame = cv2.resize(frame,(width/5, height/5), interpolation = cv2.INTER_CUBIC)
+            hsv = cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
+
+            lh = cv2.getTrackbarPos("lh","Trackbars")
+            ls = cv2.getTrackbarPos("ls","Trackbars")
+            lv = cv2.getTrackbarPos("lv","Trackbars")
+            uh = cv2.getTrackbarPos("uh","Trackbars")
+            us = cv2.getTrackbarPos("us","Trackbars")
+            uv = cv2.getTrackbarPos("uv","Trackbars")
+
+            l_blue = np.array([lh,ls,lv])
+            u_blue = np.array([uh,us,uv])
+            mask = cv2.inRange(hsv, l_blue, u_blue)
+            result = cv2.bitwise_or(frame,frame,mask=mask)
+
+            cv2.imshow("result",result)
+            cv2.imshow("mask",mask)
+            key = cv2.waitKey(1)
+            #press esc to exit
+            if key == 27:
+                break
+        cv2.destroyAllWindows()
+
+    def filter(self,image,color):
+        blurr = cv2.GaussianBlur(image, (5, 5), 0)
+        blurr_hsv = cv2.cvtColor(blurr, cv2.COLOR_BGR2HSV)
+
+        #hsv color
+        if color == 'green':
+            lower = (20,47,0)
+            upper = (90,175,147)
+
+        elif color == 'white':
+            lower = (19,0,140)
+            upper = (155,76,243)
+
+        elif color == 'red':
+            lower = (0,0,0)
+            upper = (16,251,180)
+
+        elif color == 'blue':
+            lower = (30,119,0)
+            upper = (158,255,255)
+
+        mask = cv2.inRange(blurr_hsv, lower, upper)
+        result = cv2.bitwise_or(image,image,mask=mask)
+
+        result = cv2.cvtColor(result,cv2.COLOR_HSV2BGR)
+
+        return result
