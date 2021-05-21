@@ -30,6 +30,7 @@ class ColorFilter:
 
   def detect(self,image):
 
+
     lower_black = np.array([0,0,0])  #-- Lower range --
     upper_black = np.array([70,70,70])  #-- Upper range --
 
@@ -55,115 +56,32 @@ class ColorFilter:
 
     return image
 
-class GetTrans:
-    def __init__(self,pts_src,A):
+  def green_filter(self,image):
+    hsv_image = cv2.cvtColor(image,cv2.COLOR_BGR2HSV)
+    lower_green = np.array([0,0,0])  #-- Lower range --
+    # upper_green = np.array([143,150,255])  #-- Upper range --
+    upper_green = np.array([142,147,255])  #-- Upper range --
+    # red color boundaries [B, G, R]; lower = [1, 0, 20]; upper = [60, 40, 200]
+    lower_red = np.array([137,122,0])  #-- Lower range --
+    upper_red = np.array([179,255,255])  #-- Upper range --
 
-        self.A = A
-        self.red_point = (0, 0)
-        # self.red_lower = [115, 100, 100]
-        # self.red_upper = [125, 255, 255]
-        #pts_src = pts_src / 1.05  # convert pixels to meters, can be changed for different sized "H"
+    # lower_white = np.array([150,150,150])  #-- Lower range --
+    # upper_white = np.array([255,255,255])  #-- Upper range --
 
-        self.pts_src = pts_src[::-1]  # reverse the order of the array
+    green_mask1 = cv2.inRange(hsv_image, lower_green, upper_green)
+    kernel = np.ones((5,5),np.uint8)
+    green_mask2 = cv2.dilate(green_mask1,kernel,iterations = 1)
+    image[np.where(green_mask2 == [255])] = [255]
 
+    # red_mask = cv2.inRange(image,lower_red,upper_red)
+    # ret, thresh = cv2.threshold(red_mask, 50, 255, 0)
+    # im2, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # cv2.drawContours(image, contours, -1, (0,255,0), 3)
 
-    def detect(self, frame, ori_img):
+    # white_mask1 = cv2.inRange(image, lower_white, upper_white)
+    # image[np.where(white_mask1 == [0])] = [0]
 
-        #global out
-        A = self.A
-        pts_src = self.pts_src
-        R, T = None, None
-        im_perspCorr = None # black_image (300,300,3)   np.zeros((300,300,3), np.uint8)
-        blurr = cv2.GaussianBlur(frame, (5, 5), 0)
-        imgG = cv2.cvtColor(blurr, cv2.COLOR_BGR2GRAY)
-        imgC = cv2.Canny(imgG, 50, 60)
-        imgC = cv2.morphologyEx(imgC, cv2.MORPH_CLOSE, (3, 3))
-        # imgC = cv2.dilate(imgC, (3, 3), iterations=2)
-        # (_,cont, _) = cv2.findContours(imgC.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        (_,cont, _)=cv2.findContours(imgC.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-
-        best_approx = None
-        lowest_error = float("inf")
-
-        #contour selection
-        for c in cont:
-            pts_dst = []
-            perim = cv2.arcLength(c, True)
-            approx = cv2.approxPolyDP(c, .01 * perim, True)
-            area = cv2.contourArea(c)
-
-            if len(approx) == len(self.pts_src):
-                right, error = su.rightA(approx, 80) #change the thresh if not look vertically
-                # print(right)
-                if error < lowest_error and right:
-                    lowest_error = error
-                    best_approx = approx
-
-        # red_point, _ = su.detectColor(blurr, red_lower, red_upper)
-        # if red_point is not None:
-           # cv2.circle(frame, (red_point[0] + frame.shape[0] / 2, red_point[1] + frame.shape[1] / 2), 5, (0, 0, 255), 2)
-
-        if best_approx is not None:
-            # print 'best approx',best_approx
-            # print 'red point',self.red_point
-            cv2.drawContours(frame, [best_approx], 0, (255, 0, 0), 3)
-
-            for i in range(0, len(best_approx)):
-                pts_dst.append((best_approx[i][0][0], best_approx[i][0][1]))
-                # cv2.circle(frame, pts_dst[-1], 3, (i*30, 0, 255-i*20), 3)
-
-            # Correction method for contour points.  Need to make sure the points are mapped correctly
-            pts_dst = su.sortContour(
-                np.array((self.red_point[0] + pts_dst[0][0], self.red_point[1] + pts_dst[0][1])), pts_dst)
-
-            cv2.circle(frame, pts_dst[0], 7, (0, 255, 0), 4)
-            #
-            # center = su.line_intersect(pts_dst[0][0],pts_dst[0][1],pts_dst[2][0],pts_dst[2][1],
-            #                            pts_dst[1][0],pts_dst[1][1],pts_dst[3][0],pts_dst[3][1])
-            # cv2.circle(frame, (int(center[0]), int(center[1])), 5, (0, 0, 255), 2)
-
-            for i in range(0, len(best_approx)):
-                cv2.circle(frame, pts_dst[i], 3, (i * 30, 0, 255 - i * 20), 3)
-
-            h, status = cv2.findHomography(np.array(pts_src).astype(float), np.array(pts_dst).astype(float))
-            center = np.dot(h,(0,0,1))
-            cv2.circle(frame, (int(center[0]), int(center[1])), 5, (0, 0, 255), 2)
-            # print 'status',status
-
-            (R, T) = su.decHomography(A, h)
-            Rot = su.decRotation(R)
-
-            zR = np.matrix([[math.cos(Rot[2]), -math.sin(Rot[2])], [math.sin(Rot[2]), math.cos(Rot[2])]])
-            cv2.putText(imgC, 'rX: {:0.2f} rY: {:0.2f} rZ: {:0.2f}'.format(Rot[0] * 180 / np.pi, Rot[1] * 180 / np.pi, Rot[2] * 180 / np.pi), (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
-            cv2.putText(imgC, 'tX: {:0.2f} tY: {:0.2f} tZ: {:0.2f}'.format(T[0, 0], T[0, 1], T[0, 2]), (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
-            pDot = np.dot((-200, -200), zR)
-            # pDot = np.dot((-148, -148),zR)
-            self.red_point = (int(pDot[0, 0]), int(pDot[0, 1]))
-
-            # cv2.circle(frame, (int(pDot[0, 0]) + pts_dst[0][0], int(pDot[0, 1]) + pts_dst[0][1]), 5, (0, 0, 255), 2)
-
-            # # get perspective corrected paper
-            pts1 = pts_dst
-            half_len = int(abs(pts_src[0][0]))
-            pts2 = pts_src + np.ones((4,2),dtype=int)*half_len
-            M = cv2.getPerspectiveTransform(np.float32(pts1),np.float32(pts2))
-            img_size = (half_len*2, half_len*2)
-            im_perspCorr = cv2.warpPerspective(ori_img,M,img_size)
-
-        merged_img = np.concatenate((frame, cv2.cvtColor(imgC, cv2.COLOR_BAYER_GB2BGR)), axis=1)
-        # merged_img = im_perspCorr
-
-        if R is not None:
-            # print 'R',R
-            # print 'T',T
-            Rotation = Rot
-            Translation = (T[0, 0], T[0, 1], T[0, 2])
-            return R,(Rotation, Translation), merged_img, im_perspCorr
-            # return (Rotation, Translation), merged_img
-        else:
-            return None, (None, None), merged_img, None
-            # return (None, None), merged_img
+    return image
 
 class GetTrans_new:
     def __init__(self,pts_src,A):
@@ -171,6 +89,83 @@ class GetTrans_new:
         self.A = A
         self.pts_src = pts_src[::-1]  # reverse the order of the array
 
+    def mainFuc(self):
+        cap = cv2.VideoCapture(1)
+        # cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('Y', 'U', 'Y', 'V'))
+        # cap = cv2.VideoCapture('output.avi')
+        pts_src = self.pts_src
+        A = self.A
+        trans = []
+
+        while(True):
+            _, frame = cap.read()
+
+            # motion_detector = cl.CornerMatch_new()
+            # motion_detector.hsv_calc(frame)
+            # print 'size',frame.shape
+            motion_detector0 = ColorFilter()
+            frame=motion_detector0.green_filter(frame)
+            motion_detector = GetTrans_new(pts_src,A)
+            R_mat, (R,T), result_img1, img2= motion_detector.detect(frame, frame)
+            # print 'shapeT',T.shape
+            if T is not None:
+                T = [T[0][0],T[1][0],T[2][0]]
+                trans.append(T)
+            cv2.imshow('image',result_img1)
+
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+        self.R_mat = R_mat
+        self.R = R
+        self.trans = trans
+        self.T = self.delete_anomalies(self.trans)
+        cap.release()
+        #out.release()
+        cv2.destroyAllWindows()
+
+    # Function to Detection Outlier on one-dimentional datasets.
+    def delete_anomalies(self,data):
+        #define a list to accumlate normal data
+        new_data = []
+
+        data0 = np.array(data)[:,0]
+        data1 = np.array(data)[:,1]
+        data2 = np.array(data)[:,2]
+
+        # Set upper and lower limit to 3 standard deviation
+        data_std0 = np.std(data0)
+        data_mean0 = np.mean(data0)
+        anomaly_cut_off0 = data_std0 * 3
+        lower_limit0 = data_mean0 - anomaly_cut_off0
+        upper_limit0 = data_mean0 + anomaly_cut_off0
+
+        data_std1 = np.std(data1)
+        data_mean1 = np.mean(data1)
+        anomaly_cut_off1 = data_std1 * 3
+        lower_limit1 = data_mean1 - anomaly_cut_off1
+        upper_limit1 = data_mean1 + anomaly_cut_off1
+
+        data_std2 = np.std(data2)
+        data_mean2 = np.mean(data2)
+        anomaly_cut_off2 = data_std2 * 3
+        lower_limit2 = data_mean2 - anomaly_cut_off2
+        upper_limit2 = data_mean2 + anomaly_cut_off2
+
+        # Generate inliers
+        for i in range(len(data0)):
+            d0 = data0[i]
+            d1 = data1[i]
+            d2 = data2[i]
+            if d0 < upper_limit0 and d0 > lower_limit0 and d1 < upper_limit1 and d1 > lower_limit1 and d2 < upper_limit2 and d2 > lower_limit2:
+                new_data.append([d0,d1,d2])
+
+        trans0 = np.mean(np.array(new_data)[:,0])
+        trans1 = np.mean(np.array(new_data)[:,1])
+        trans2 = np.mean(np.array(new_data)[:,2])
+        return [trans0,trans1,trans2]
+
     def detect(self, frame, ori_img):
 
         #global out
@@ -183,9 +178,10 @@ class GetTrans_new:
         imgC = cv2.Canny(imgG, 50, 60)
         imgC = cv2.morphologyEx(imgC, cv2.MORPH_CLOSE, (3, 3))
         # imgC = cv2.dilate(imgC, (3, 3), iterations=2)
-        # (_,cont, _)=cv2.findContours(imgC.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        (_,cont, _) = cv2.findContours(imgC.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
-
+        (_,cont, _)=cv2.findContours(imgC.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # (_,cont, _) = cv2.findContours(imgC.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        frame = cv2.drawContours(frame,cont,-1,(0,0,255),3)
+        # print 'cont num',len(cont)
         best_approx = None
         lowest_error = float("inf")
 
@@ -265,7 +261,7 @@ class GetTrans_new:
 
             zR = np.matrix([[math.cos(Rot[2]), -math.sin(Rot[2])], [math.sin(Rot[2]), math.cos(Rot[2])]])
             cv2.putText(imgC, 'rX: {:0.2f} rY: {:0.2f} rZ: {:0.2f}'.format(Rot[0] * 180 / np.pi, Rot[1] * 180 / np.pi, Rot[2] * 180 / np.pi), (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
-            cv2.putText(imgC, 'tX: {:0.2f} tY: {:0.2f} tZ: {:0.2f}'.format(Translation[0][0], Translation[1][0], Translation[2][0]), (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255))
+            cv2.putText(imgC, 'tX: {:0.2f} tY: {:0.2f} tZ: {:0.2f}'.format(Translation[0][0], Translation[1][0], Translation[2][0]), (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
 
             # get perspective corrected paper
             pts1 = pts_dst
@@ -276,6 +272,7 @@ class GetTrans_new:
             im_perspCorr = cv2.warpPerspective(ori_img,M,img_size)
 
         merged_img = np.concatenate((frame, cv2.cvtColor(imgC, cv2.COLOR_BAYER_GB2BGR)), axis=1)
+        # merged_img = np.concatenate((frame, ori_img), axis=1)
         # merged_img = im_perspCorr
 
         if R is not None:

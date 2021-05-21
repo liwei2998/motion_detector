@@ -176,33 +176,50 @@ if __name__ == '__main__':
 
 ##test 6: get trans
 
-    cap = cv2.VideoCapture(1)
-    # cap = cv2.VideoCapture('output.avi')
-    pts_src =[[0, 0], [145, 0],[0, 145]]
-    # pts_src = np.array([[0, 0], [145, 0],[0, 145]])
-    # pts_src = np.array([[0, 0], [205, 0], [102.5, 145]])
+    # cap = cv2.VideoCapture(1)
+    # # cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('Y', 'U', 'Y', 'V'))
+    # # cap = cv2.VideoCapture('output.avi')
+    # pts_src =[[0, 0], [145, 0],[0, 145]]
+    # # pts_src = np.array([[0, 0], [145, 0],[0, 145]])
+    # # pts_src = np.array([[0, 0], [205, 0], [102.5, 145]])
+    # A = np.matrix([[741.2212917530331, 0, 311.8358797867751],
+    #                [0, 741.2317153584389, 240.6847621777156], [0.0, 0.0, 1.0]])  #intrinsic parameters of camera
+    #
+    #
+    # # pts_src = pts_src / 166.5  # convert pixels to meters, can be changed for different sized "H"
+    # pts_src = pts_src[::-1]  # reverse the order of the array
+    #
+    # rotations = []  # create a structure to store information for matlab
+    # trans = []
+    #
+    # while(True):
+    #     _, frame = cap.read()
+    #
+    #     # motion_detector = cl.CornerMatch_new()
+    #     # motion_detector.hsv_calc(frame)
+    #     # print 'size',frame.shape
+    #     motion_detector0 = cl.ColorFilter()
+    #     frame=motion_detector0.green_filter(frame)
+    #     motion_detector = cl.GetTrans_new(pts_src,A)
+    #     motion_detector1 = cl.ColorFilter()
+    #     # image0 = motion_detector1.detect(frame)
+    #     R_mat, (R,T), result_img1, img2= motion_detector.detect(frame, frame)
+    #     cv2.imshow('image',result_img1)
+    #
+    #
+    #     if cv2.waitKey(1) & 0xFF == ord('q'):
+    #         break
+    #
+    # cap.release()
+    # #out.release()
+    # cv2.destroyAllWindows()
+    pts_src = [[0, 0], [145, 0], [0, 145]]
+
     A = np.matrix([[741.2212917530331, 0, 311.8358797867751],
                    [0, 741.2317153584389, 240.6847621777156], [0.0, 0.0, 1.0]])  #intrinsic parameters of camera
 
+    motion_detector0 = cl.GetTrans_new(pts_src,A)
+    motion_detector0.mainFuc()
 
-    # pts_src = pts_src / 166.5  # convert pixels to meters, can be changed for different sized "H"
-    pts_src = pts_src[::-1]  # reverse the order of the array
-
-    rotations = []  # create a structure to store information for matlab
-    trans = []
-
-    while(True):
-        _, frame = cap.read()
-        motion_detector = cl.GetTrans_new(pts_src,A)
-        motion_detector1 = cl.ColorFilter()
-        # image0 = motion_detector1.detect(frame)
-        R_mat, (R,T), result_img1, img2= motion_detector.detect(frame, frame)
-        cv2.imshow('image',result_img1)
-
-
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    cap.release()
-    #out.release()
-    cv2.destroyAllWindows()
+    print 'R',motion_detector0.R
+    print 'T',motion_detector0.T
