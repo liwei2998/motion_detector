@@ -37,7 +37,7 @@ def rightA(approx, thresh):
             dif=dif1
             # print 'angle',angle
 
-        if dif < thresh and dif == dif0 and len(new_approx)==0:
+        if dif < thresh and dif == dif0 and len(new_approx)==0 and len(approx)==3:
             # print 'angle dif',angle
             # new_approx.append((approx[(i + 2) % AL]).tolist())
             # new_approx.append((approx[i % AL]).tolist())
@@ -45,6 +45,8 @@ def rightA(approx, thresh):
             new_approx.append((approx[(i + 1) % AL]).tolist())
             new_approx.append((approx[(i + 2) % AL]).tolist())
             new_approx.append((approx[i % AL]).tolist())
+        elif len(approx)>3:
+            new_approx = approx
 
         error += dif
 
@@ -103,7 +105,7 @@ def H_from_points(fp, tp):
     H = np.dot(np.linalg.inv(C2), np.dot(H, C1))
 
     # Normalize and return
-    return H 
+    return H
 
 def drawCircles(image, points, radius, color, thick):
     for i in range(0, len(points)):

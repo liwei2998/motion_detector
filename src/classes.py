@@ -169,12 +169,7 @@ class GetTrans_new:
     def __init__(self,pts_src,A):
 
         self.A = A
-        self.red_point = (0, 0)
-        # self.red_lower = [115, 100, 100]
-        # self.red_upper = [125, 255, 255]
-        #pts_src = pts_src / 1.05  # convert pixels to meters, can be changed for different sized "H"
         self.pts_src = pts_src[::-1]  # reverse the order of the array
-
 
     def detect(self, frame, ori_img):
 
@@ -190,9 +185,7 @@ class GetTrans_new:
         # imgC = cv2.dilate(imgC, (3, 3), iterations=2)
         # (_,cont, _)=cv2.findContours(imgC.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         (_,cont, _) = cv2.findContours(imgC.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
-        # print 'contour num',len(cont)
-        image = cv2.drawContours(frame,cont,0,(0,0,255),3)
-        # cv2.imshow('image',image)
+
         best_approx = None
         lowest_error = float("inf")
 
@@ -202,8 +195,6 @@ class GetTrans_new:
             perim = cv2.arcLength(c, True)
             approx = cv2.approxPolyDP(c, .01 * perim, True)
             area = cv2.contourArea(c)
-            # print 'approx',approx
-            # print 'type approx',type(approx)
 
             if len(approx) == len(self.pts_src):
                 right, error, new_approx = su.rightA(approx, 5) #80#change the thresh if not look vertically
@@ -214,54 +205,41 @@ class GetTrans_new:
                     lowest_error = error
                     best_approx = new_approx
 
-        # red_point, _ = su.detectColor(blurr, red_lower, red_upper)
-        # if red_point is not None:
-           # cv2.circle(frame, (red_point[0] + frame.shape[0] / 2, red_point[1] + frame.shape[1] / 2), 5, (0, 0, 255), 2)
-
         if best_approx is not None:
-            # print 'best approx',best_approx
-            # print 'red point',self.red_point
             cv2.drawContours(frame, [best_approx], 0, (255, 0, 0), 3)
 
             for i in range(0, len(best_approx)):
                 pts_dst.append((best_approx[i][0][0], best_approx[i][0][1]))
                 # cv2.circle(frame, pts_dst[-1], 3, (i*30, 0, 255-i*20), 3)
-            print 'pts  dst',pts_dst
-            mid_point = (int((pts_dst[1][0]+pts_dst[2][0])/2),int((pts_dst[1][1]+pts_dst[2][1])/2))
-            pts_dst.append(pts_dst[2])
-            pts_dst[2] = mid_point
-            print 'pts  dst2',pts_dst
-            pts_src1 = np.array([[0, 0], [145, 0],[72.5,72.5], [0, 145]])
 
-            # Correction method for contour points.  Need to make sure the points are mapped correctly
-            # pts_dst = su.sortContour(
-            #     np.array((self.red_point[0] + pts_dst[0][0], self.red_point[1] + pts_dst[0][1])), pts_dst)
-
-            # cv2.circle(frame, pts_dst[0], 7, (0, 255, 0), 4)
+            if len(pts_dst) < 4: #at least 4 points are needed (not co-linear points)
+                #modify pts_dst
+                new_dst_point = (int((pts_dst[0][0]+pts_dst[1][0]+pts_dst[2][0])/3),int((pts_dst[0][1]+pts_dst[1][1]+pts_dst[2][1])/3))
+                pts_dst.append(pts_dst[2])
+                pts_dst[2] = new_dst_point
+                #modify pts_src
+                new_src_point = [int((pts_src[0][0]+pts_src[1][0]+pts_src[2][0])/3),int((pts_src[0][1]+pts_src[1][1]+pts_src[2][1])/3)]
+                pts_src.append(pts_src[2])
+                pts_src[2] = new_src_point
 
             # center = su.line_intersect(pts_dst[0][0],pts_dst[0][1],pts_dst[2][0],pts_dst[2][1],
             #                            pts_dst[1][0],pts_dst[1][1],pts_dst[3][0],pts_dst[3][1])
             # cv2.circle(frame, (int(center[0]), int(center[1])), 5, (0, 0, 255), 2)
 
-            # for i in range(0, len(best_approx)):
-            #     cv2.circle(frame, pts_dst[i], 3, (i * 30, 0, 255 - i * 20), 3)
-            # print 'best approx',best_approx
-            h1, status = cv2.findHomography(np.array(pts_src1).astype(float), np.array(pts_dst).astype(float),cv2.RANSAC,5.0)
-            h, status = cv2.findHomography(np.array(pts_src1).astype(float), np.array(pts_dst).astype(float))
-            print 'h',h
-            print 'h1',h1
+            # h1, status = cv2.findHomography(np.array(pts_src1).astype(float), np.array(pts_dst).astype(float),cv2.RANSAC,5.0)
+            h, status = cv2.findHomography(np.array(pts_src).astype(float), np.array(pts_dst).astype(float))
+            # h2 = su.H_from_points(np.array(pts_src1).astype(float), np.array(pts_dst).astype(float))
+
             center1 = np.dot(h,(0,0,1))
-            print 'center1',center1
-            cv2.circle(frame, (int(center1[0]), int(center1[1])), 10, (0, 0, 255), 2)
-            center2 = np.dot(h,(145,0,1))
-            print 'center2',center2
-            cv2.circle(frame, (int(center2[0]), int(center2[1])), 10, (0, 255, 0), 2)
-            center3 = np.dot(h,(0,145,1))
-            print 'center3',center3
-            cv2.circle(frame, (int(center3[0]), int(center3[1])), 10, (0, 255, 255), 2)
-            # print 'center',center1
             # print 'center1',center1
-            print 'status',status
+            cv2.circle(frame, (int(center1[0]), int(center1[1])), 10, (0, 0, 255), 2)
+            # center2 = np.dot(h,(145,0,1))
+            # print 'center2',center2
+            # cv2.circle(frame, (int(center2[0]), int(center2[1])), 10, (0, 255, 0), 2)
+            # center3 = np.dot(h,(0,145,1))
+            # print 'center3',center3
+            # cv2.circle(frame, (int(center3[0]), int(center3[1])), 10, (0, 255, 255), 2)
+            # print 'status',status
 
             (R, T) = su.decHomography(A, h)
             ########liwei: change the decompose homography method and do one more transformation (from pixel frame to camera frame)
@@ -272,12 +250,13 @@ class GetTrans_new:
             Ts contains a list of the translation vector.
             Ns contains a list of the normal vector of the plane.
             '''
+            Translation = Ts[0]
             # print 'num',num
             # print 'Ts',Ts
-            u0 = A[0,2]
-            v0 = A[1,2]
-            f = A[0,0]
-            Translation = [Ts[0][2]/f*(Ts[0][0]),Ts[0][2]/f*(Ts[0][1]),Ts[0][2]]
+            # u0 = A[0,2]
+            # v0 = A[1,2]
+            # f = A[0,0]
+            # Translation = [Ts[0][2]/f*(Ts[0][0]),Ts[0][2]/f*(Ts[0][1]),Ts[0][2]]
             # print 'R',R
             # print 'RS',Rs
             # print 'tranlation3',Translation
@@ -287,19 +266,14 @@ class GetTrans_new:
             zR = np.matrix([[math.cos(Rot[2]), -math.sin(Rot[2])], [math.sin(Rot[2]), math.cos(Rot[2])]])
             cv2.putText(imgC, 'rX: {:0.2f} rY: {:0.2f} rZ: {:0.2f}'.format(Rot[0] * 180 / np.pi, Rot[1] * 180 / np.pi, Rot[2] * 180 / np.pi), (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
             cv2.putText(imgC, 'tX: {:0.2f} tY: {:0.2f} tZ: {:0.2f}'.format(Translation[0][0], Translation[1][0], Translation[2][0]), (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255))
-            # pDot = np.dot((-200, -200), zR)
-            # pDot = np.dot((-148, -148),zR)
-            # self.red_point = (int(pDot[0, 0]), int(pDot[0, 1]))
 
-            # cv2.circle(frame, (int(pDot[0, 0]) + pts_dst[0][0], int(pDot[0, 1]) + pts_dst[0][1]), 5, (0, 0, 255), 2)
-
-            # # get perspective corrected paper
-            # pts1 = pts_dst
-            # half_len = int(abs(pts_src[0][0]))
-            # pts2 = pts_src + np.ones((4,2),dtype=int)*half_len
-            # M = cv2.getPerspectiveTransform(np.float32(pts1),np.float32(pts2))
-            # img_size = (half_len*2, half_len*2)
-            # im_perspCorr = cv2.warpPerspective(ori_img,M,img_size)
+            # get perspective corrected paper
+            pts1 = pts_dst
+            half_len = int(abs(pts_src[0][0]))
+            pts2 = pts_src + np.ones((4,2),dtype=int)*half_len
+            M = cv2.getPerspectiveTransform(np.float32(pts1),np.float32(pts2))
+            img_size = (half_len*2, half_len*2)
+            im_perspCorr = cv2.warpPerspective(ori_img,M,img_size)
 
         merged_img = np.concatenate((frame, cv2.cvtColor(imgC, cv2.COLOR_BAYER_GB2BGR)), axis=1)
         # merged_img = im_perspCorr
@@ -308,13 +282,14 @@ class GetTrans_new:
             # print 'R',R
             # print 'T',T
             Rotation = Rot
-            Translation = (T[0, 0], T[0, 1], T[0, 2])
+            # Translation = (T[0, 0], T[0, 1], T[0, 2])
+            # print 'translation',Translation
 
-            # return R,(Rotation, Translation), merged_img, im_perspCorr
-            return R, (Rotation, Translation), merged_img, image
+            return R,(Rotation, Translation), merged_img, im_perspCorr
+            # return R, (Rotation, Translation), merged_img
         else:
-            # return None, (None, None), merged_img, None
-            return None,(None, None), merged_img, image
+            return None, (None, None), merged_img, None
+            # return None,(None, None), merged_img
 
 class GetCreases:
   def __init__(self):
