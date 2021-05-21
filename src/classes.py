@@ -15,7 +15,10 @@ from skimage.measure import label
 from skimage.filters import threshold_otsu
 from shapely.ops import cascaded_union
 from numpy import asarray
-
+import glob
+import copy
+import Util as ut
+import homo_test as ht
 kernel_elliptic_7 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
 kernel_elliptic_15 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
 area_threshold = 2000
@@ -24,6 +27,7 @@ area_threshold = 2000
 class ColorFilter:
   def __init__(self):
     self.size=[1280,720]
+
   def detect(self,image):
 
     lower_black = np.array([0,0,0])  #-- Lower range --
@@ -77,6 +81,8 @@ class GetTrans:
         # imgC = cv2.dilate(imgC, (3, 3), iterations=2)
         # (_,cont, _) = cv2.findContours(imgC.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         (_,cont, _)=cv2.findContours(imgC.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+
         best_approx = None
         lowest_error = float("inf")
 
@@ -182,8 +188,11 @@ class GetTrans_new:
         imgC = cv2.Canny(imgG, 50, 60)
         imgC = cv2.morphologyEx(imgC, cv2.MORPH_CLOSE, (3, 3))
         # imgC = cv2.dilate(imgC, (3, 3), iterations=2)
-        # (_,cont, _) = cv2.findContours(imgC.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        (_,cont, _)=cv2.findContours(imgC.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # (_,cont, _)=cv2.findContours(imgC.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        (_,cont, _) = cv2.findContours(imgC.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        # print 'contour num',len(cont)
+        image = cv2.drawContours(frame,cont,0,(0,0,255),3)
+        # cv2.imshow('image',image)
         best_approx = None
         lowest_error = float("inf")
 
@@ -193,13 +202,17 @@ class GetTrans_new:
             perim = cv2.arcLength(c, True)
             approx = cv2.approxPolyDP(c, .01 * perim, True)
             area = cv2.contourArea(c)
+            # print 'approx',approx
+            # print 'type approx',type(approx)
 
             if len(approx) == len(self.pts_src):
-                right, error = su.rightA(approx, 80) #change the thresh if not look vertically
+                right, error, new_approx = su.rightA(approx, 5) #80#change the thresh if not look vertically
                 # print(right)
+                new_approx = np.array(new_approx)
+                # print 'new approx',new_approx
                 if error < lowest_error and right:
                     lowest_error = error
-                    best_approx = approx
+                    best_approx = new_approx
 
         # red_point, _ = su.detectColor(blurr, red_lower, red_upper)
         # if red_point is not None:
@@ -213,25 +226,42 @@ class GetTrans_new:
             for i in range(0, len(best_approx)):
                 pts_dst.append((best_approx[i][0][0], best_approx[i][0][1]))
                 # cv2.circle(frame, pts_dst[-1], 3, (i*30, 0, 255-i*20), 3)
+            print 'pts  dst',pts_dst
+            mid_point = (int((pts_dst[1][0]+pts_dst[2][0])/2),int((pts_dst[1][1]+pts_dst[2][1])/2))
+            pts_dst.append(pts_dst[2])
+            pts_dst[2] = mid_point
+            print 'pts  dst2',pts_dst
+            pts_src1 = np.array([[0, 0], [145, 0],[72.5,72.5], [0, 145]])
 
             # Correction method for contour points.  Need to make sure the points are mapped correctly
-            pts_dst = su.sortContour(
-                np.array((self.red_point[0] + pts_dst[0][0], self.red_point[1] + pts_dst[0][1])), pts_dst)
+            # pts_dst = su.sortContour(
+            #     np.array((self.red_point[0] + pts_dst[0][0], self.red_point[1] + pts_dst[0][1])), pts_dst)
 
-            cv2.circle(frame, pts_dst[0], 7, (0, 255, 0), 4)
+            # cv2.circle(frame, pts_dst[0], 7, (0, 255, 0), 4)
 
             # center = su.line_intersect(pts_dst[0][0],pts_dst[0][1],pts_dst[2][0],pts_dst[2][1],
             #                            pts_dst[1][0],pts_dst[1][1],pts_dst[3][0],pts_dst[3][1])
             # cv2.circle(frame, (int(center[0]), int(center[1])), 5, (0, 0, 255), 2)
 
-            for i in range(0, len(best_approx)):
-                cv2.circle(frame, pts_dst[i], 3, (i * 30, 0, 255 - i * 20), 3)
-
-            h, status = cv2.findHomography(np.array(pts_src).astype(float), np.array(pts_dst).astype(float))
+            # for i in range(0, len(best_approx)):
+            #     cv2.circle(frame, pts_dst[i], 3, (i * 30, 0, 255 - i * 20), 3)
+            # print 'best approx',best_approx
+            h1, status = cv2.findHomography(np.array(pts_src1).astype(float), np.array(pts_dst).astype(float),cv2.RANSAC,5.0)
+            h, status = cv2.findHomography(np.array(pts_src1).astype(float), np.array(pts_dst).astype(float))
+            print 'h',h
+            print 'h1',h1
             center1 = np.dot(h,(0,0,1))
-            print 'center',center1
+            print 'center1',center1
+            cv2.circle(frame, (int(center1[0]), int(center1[1])), 10, (0, 0, 255), 2)
+            center2 = np.dot(h,(145,0,1))
+            print 'center2',center2
+            cv2.circle(frame, (int(center2[0]), int(center2[1])), 10, (0, 255, 0), 2)
+            center3 = np.dot(h,(0,145,1))
+            print 'center3',center3
+            cv2.circle(frame, (int(center3[0]), int(center3[1])), 10, (0, 255, 255), 2)
+            # print 'center',center1
             # print 'center1',center1
-            # print 'status',status
+            print 'status',status
 
             (R, T) = su.decHomography(A, h)
             ########liwei: change the decompose homography method and do one more transformation (from pixel frame to camera frame)
@@ -256,10 +286,10 @@ class GetTrans_new:
 
             zR = np.matrix([[math.cos(Rot[2]), -math.sin(Rot[2])], [math.sin(Rot[2]), math.cos(Rot[2])]])
             cv2.putText(imgC, 'rX: {:0.2f} rY: {:0.2f} rZ: {:0.2f}'.format(Rot[0] * 180 / np.pi, Rot[1] * 180 / np.pi, Rot[2] * 180 / np.pi), (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
-            cv2.putText(imgC, 'tX: {:0.2f} tY: {:0.2f} tZ: {:0.2f}'.format(Translation[0][0], Translation[1][0], Translation[2][0]), (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
-            pDot = np.dot((-200, -200), zR)
+            cv2.putText(imgC, 'tX: {:0.2f} tY: {:0.2f} tZ: {:0.2f}'.format(Translation[0][0], Translation[1][0], Translation[2][0]), (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255))
+            # pDot = np.dot((-200, -200), zR)
             # pDot = np.dot((-148, -148),zR)
-            self.red_point = (int(pDot[0, 0]), int(pDot[0, 1]))
+            # self.red_point = (int(pDot[0, 0]), int(pDot[0, 1]))
 
             # cv2.circle(frame, (int(pDot[0, 0]) + pts_dst[0][0], int(pDot[0, 1]) + pts_dst[0][1]), 5, (0, 0, 255), 2)
 
@@ -278,21 +308,22 @@ class GetTrans_new:
             # print 'R',R
             # print 'T',T
             Rotation = Rot
+            Translation = (T[0, 0], T[0, 1], T[0, 2])
 
             # return R,(Rotation, Translation), merged_img, im_perspCorr
-            return R, (Rotation, Translation), merged_img
+            return R, (Rotation, Translation), merged_img, image
         else:
             # return None, (None, None), merged_img, None
-            return None,(None, None), merged_img
+            return None,(None, None), merged_img, image
 
 class GetCreases:
   def __init__(self):
     self.size=[1280,720]
-  def detect(self,image):
+
+  def detect(self,image,pts_src):
 
     lower_black = np.array([0,0,0])  #-- Lower range --
     upper_black = np.array([70,70,70])  #-- Upper range --
-
 
     black_mask1 = cv2.inRange(image, lower_black, upper_black)
     kernel = np.ones((5,5),np.uint8)
@@ -317,6 +348,7 @@ class GetCreases:
 
     ##get post process result, and merge similar lines
     merged_lines = None
+    # print 'ori lines',lines
     if lines is not None:
       pp = HoughBundler()
       pp_result = pp.process_lines(lines, black_mask3)
@@ -328,6 +360,17 @@ class GetCreases:
         point2 = (line[1][0],line[1][1])
 
         cv2.line(edges_img,point1,point2,(0,255,0),3)
+
+    for i in range(len(pts_src)):
+
+        pt0 = (pts_src[i][0],pts_src[i][1])
+        if i != len(pts_src)-1:
+            pt1 = (pts_src[i+1][0],pts_src[i+1][1])
+        else:
+            pt1 = (pts_src[0][0],pts_src[0][1])
+        cv2.line(edges_img,pt0,pt1,(0,255,0),3)
+
+
 
     # print lines
     # print "merged_result", merged_lines
@@ -421,13 +464,13 @@ class HoughBundler:
         # for every line of cv2.HoughLinesP()
         for line_i in [l[0] for l in lines]:
 
-                orientation = self.get_orientation(line_i)
-                # if vertical
-                # if 45 < orientation < 135:
-                if 84 < orientation < 96:
-                    lines_y.append(line_i)
-                else:
-                    lines_x.append(line_i)
+            orientation = self.get_orientation(line_i)
+            # if vertical
+            # if 45 < orientation < 135:
+            if 84 < orientation < 96:
+                lines_y.append(line_i)
+            else:
+                lines_x.append(line_i)
 
         lines_y = sorted(lines_y, key=lambda line: line[1])
         lines_x = sorted(lines_x, key=lambda line: line[0])
@@ -715,8 +758,8 @@ class CornerMatch:
             mask = cv2.inRange(hsv, l_blue, u_blue)
             result = cv2.bitwise_or(frame,frame,mask=mask)
 
-            # cv2.imshow("result",result)
-            # cv2.imshow("mask",mask)
+            cv2.imshow("result",result)
+            cv2.imshow("mask",mask)
             key = cv2.waitKey(1)
             #press esc to exit
             if key == 27:
@@ -1203,50 +1246,82 @@ class Predictor:
     # predict the next state
     # 1) next pts_src (used in class GetTrans)
     # 2) next top color (used for class CornerMatch)
-    def __init__(self,pts_src,creases):
+    def __init__(self,pts_src,crease,original_image,step=0):
 
         self.pts_src = pts_src
-        self.creases = creases # the creases are stored by folding sequence, folded creases are deleted. e.g creases[0] is the first-folded crease
+        # the creases are stored by folding sequence, folded creases are deleted. e.g creases[0] is the first-folded crease
         # crease direction is given by opencv
+        self.crease = crease
+        self.state = {}
 
-    def lineToFunction(self,line):
-        "input line[[x1,y1],[x2,y2]], return k,b (ax+by+c=0)"
-        # a = y2-y1, b = x1-x2, c=x2*y1-x1*y2
-        a = line[1][1] - line[0][1]
-        b = line[0][0] - line[1][0]
-        c = line[1][0]*line[0][1] - line[0][0]*line[1][1]
-        return a,b,c
+        #get all facet information
+        contour_image = self.get_facets_info(original_image,step)
+        # cv2.imshow('contour image',contour_image)
 
-    def reversePoint(self,crease,point):
-        # print 'crease',crease
-        a,b,c = self.lineToFunction(crease)
-        # print 'a bc ',a,b,c
-        x = point[0]
-        y = point[1]
-        reversed_point = []
-        if a == 0 and b != 0:
-            x1 = x
-            y1 = -2*c/b - y
-        if b == 0 and a != 0:
-            y1 = y
-            x1 = -2*c/a - x
-        if a !=0 and b!= 0:
-            x1 = -1*(2*a*b*y + (a*a-b*b)*x + 2*a*c) / (a*a + b*b)
-            y1 = -1*((b*b-a*a)*y + 2*a*b*x + 2*b*c) / (a*a + b*b)
-        reversed_point.append(x1)
-        reversed_point.append(y1)
-        return reversed_point
+    def crease_update(self,new_crease):
+        # update crease info
+        self.crease = new_crease
 
-    def get_facets(self):
-        # each crease divides the paper into two facets
-        # this function returns all facets divided by the creases
-        pts_src = self.pts_src
-        creases = self.creases
+    def get_facets_info(self,image,step):
+        # get all facets in the image, implemented by opencv polygon detection
 
-    def get_new_pts_contour(self):
-        crease = self.creases[0]
-        pts = self.pts_src
-        a,b,c = self.lineToFunction(crease)
+        if step == 0:
+            # get all facets information at the first step
+            facet_pts = {}
+            facet_colors = {}
+
+            #step1: get facets contours (findContours)
+            gray = cv2.cvtColor(image,cv2.COLOR_RGB2GRAY)
+            ret, binary = cv2.threshold(gray,127,255,cv2.THRESH_BINARY)
+            _, contours, hierarchy = cv2.findContours(binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+            image = cv2.drawContours(image,contours,-1,(0,0,255),3)
+            print 'contour nums',len(contours)
+            # print 'contour', contours[1]
+            # print 'hierarchy',hierarchy
+
+            #step2: get and store points of each contour
+            for i in range(1,len(contours)):
+                cnt_temp = contours[i].reshape(len(contours[i]),2)
+                facet_pts.setdefault(str(i),cnt_temp)
+                facet_colors.setdefault(str(i),0)
+            state1 = {'facet_pts':copy.deepcopy(facet_pts),'facet_colors':copy.deepcopy(facet_colors)}
+            self.state.setdefault('state1',state1)
+            # print 'state1',self.state
+            return image
+
+        else:
+            #update the folded facets information
+
+            #step1: find facets on the left side of the current state
+            crease = copy.deepcopy(self.crease)
+            state = 'state'+str(step)
+            facet_pts = copy.deepcopy(self.state[state]['facet_pts'])
+            left_facets,_ = ut.get_side_facets(crease,facet_pts)
+
+            #step2: reverse all points on the left facets, update color information
+            for facet in left_facets:
+                pts = copy.deepcopy(self.state[state]['facet_pts'][facet])
+                reversed_pts = []
+                for pt in pts:
+                    reversed_pt = ut.reversePoint(crease,pt)
+                    reversed_pts.append(reversed_pt)
+                self.state[state]['facet_pts'][facet] = reversed_pts
+
+                colors =copy.deepcopy(self.state[state]['facet_colors'][facet])
+                self.state[state]['facet_colors'][facet] = colors+1
+
+            #step3: new contour image
+            gray = cv2.cvtColor(image,cv2.COLOR_RGB2GRAY)
+            ret, binary = cv2.threshold(gray,127,255,cv2.THRESH_BINARY)
+            _, contours, hierarchy = cv2.findContours(binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+            image = cv2.drawContours(image,contours,-1,(0,0,255),3)
+            return image
+
+    def get_new_contour(self):
+        # get the new paper contour after folding
+        crease = copy.deepcopy(self.crease)
+        pts = copy.deepcopy(self.pts_src)
+        a,b,c = ut.lineToFunction(crease)
 
         #step1: get pts at the left of the crease
         left_pts = []
@@ -1267,7 +1342,7 @@ class Predictor:
         #step2: reverse the left pts
         reversed_left_pts = []
         for pt in left_pts:
-            reversed_pt = self.reversePoint(crease,pt)
+            reversed_pt = ut.reversePoint(crease,pt)
             reversed_left_pts.append(reversed_pt)
         # print 'reversed left pts',reversed_left_pts
 
@@ -1286,5 +1361,32 @@ class Predictor:
 
         return new_pts_src
 
-    # def get_colors(self):
-    #     #get colors for corner matching, return the upper color and lower color
+    def get_colors(self,step,reflect):
+        #get colors for corner matching, return the upper color and lower color
+
+        #step1: find facet on the right side of the crease (fixed facets)
+        crease = copy.deepcopy(self.crease)
+        state = 'state'+str(step+1)
+        facet_pts = copy.deepcopy(self.state[state]['facet_pts'])
+        _,right_facets = ut.get_side_facets(crease,facet_pts)
+
+        #step2: get the color of lower paper (fixed paper)
+        #assume there is only one color
+        right_facet_colors = copy.deepcopy(self.state[state]['facet_colors'])
+        color_max = 0
+        for facet in right_facet_colors.keys():
+            color = right_facet_colors[facet]
+            if color>=color_max:
+                color_max=color
+        if color_max % 2 == 0:
+            lower_color = 'white'
+        else:
+            lower_color = 'green'
+
+        #step3: get the color of upper paper, this needs to be further modified
+        if reflect == 0:
+            upper_color = 'green'
+        if reflect == 1:
+            upper_color = 'white'
+
+        return lower_color,upper_color
