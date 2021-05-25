@@ -267,10 +267,10 @@ class GetTrans_new:
             # print 'center1',center1
             cv2.circle(frame, (int(center1[0]), int(center1[1])), 10, (0, 0, 255), 2)
             center2 = np.dot(h,(145,0,1))
-            print 'center2',center2
+            # print 'center2',center2
             # cv2.circle(frame, (int(center2[0]), int(center2[1])), 10, (0, 255, 0), 2)
             center3 = np.dot(h,(0,145,1))
-            print 'center3',center3
+            # print 'center3',center3
             # cv2.circle(frame, (int(center3[0]), int(center3[1])), 10, (0, 255, 255), 2)
             # print 'status',status
 
@@ -307,6 +307,9 @@ class GetTrans_new:
             M = cv2.getPerspectiveTransform(np.float32(pts1),np.float32(pts2))
             img_size = (half_len*2, half_len*2)
             im_perspCorr = cv2.warpPerspective(frame,M,img_size)
+            mid_src = ((pts_src[0][0]+pts_src[1][0])/2,(pts_src[0][1]+pts_src[1][1])/2,1)
+            mid_point = np.dot(np.linalg.inv(M),mid_src)
+            print 'mid point persp',mid_point
 
         # merged_img = np.concatenate((frame, cv2.cvtColor(imgC, cv2.COLOR_BAYER_GB2BGR)), axis=1)
         # merged_img = np.concatenate((frame, ori_img), axis=1)
@@ -406,7 +409,7 @@ class GetTrans_new:
             '''
             Translation = Ts[0]
             # print 'num',num
-            print 'Ts',Ts
+            # print 'Ts',Ts
             # u0 = A[0,2]
             # v0 = A[1,2]
             # f = A[0,0]
