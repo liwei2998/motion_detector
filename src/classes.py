@@ -17,8 +17,9 @@ from shapely.ops import cascaded_union
 from numpy import asarray
 import glob
 import copy
+from cv_bridge import CvBridge, CvBridgeError
+from sensor_msgs.msg import Image
 import Util as ut
-import homo_test as ht
 kernel_elliptic_7 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
 kernel_elliptic_15 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
 area_threshold = 2000
@@ -60,13 +61,17 @@ class ColorFilter:
     #return paper mask
     imgHSV = cv2.cvtColor(image,cv2.COLOR_BGR2HSV)
     imgG = cv2.cvtColor(imgHSV,cv2.COLOR_BGR2GRAY)
+    # cv2.imshow('imgg',imgG)
     img0 = cv2.morphologyEx(imgG,cv2.MORPH_OPEN,(11,11))
     imgC = cv2.morphologyEx(img0,cv2.MORPH_CLOSE,(11,11))
     imgC = cv2.GaussianBlur(imgC,(9,9),0)
     (_,imgC) = cv2.threshold(imgC,200,255,cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    # cv2.imshow('imgc',imgC)
     imgC = cv2.bitwise_not(imgC)
+    # cv2.imshow('imgc',imgC)
     cm = CornerMatch_new()
     mask_paper =cm.largestConnectComponent(imgC)
+    # cv2.imshow('mask papr',mask_paper)
     mask = copy.deepcopy(mask_paper)
     mask[np.where(mask_paper == [255])] = [0]
     mask[np.where(mask_paper == [0])] = [255]
@@ -97,7 +102,7 @@ class GetTrans_new:
             frame0 = copy.deepcopy(frame)
             frame0=motion_detector0.paper_filter(frame0)
             motion_detector = GetTrans_new(pts_src,A)
-            R_mat, (R,T), result_img1, img2= motion_detector.detect(frame0, frame0)
+            h_mat, (R,T), result_img1, img2= motion_detector.detect(frame0, frame0)
             # print 'shapeT',T.shape
             if T is not None:
                 T = [T[0][0],T[1][0],T[2][0]]
@@ -109,13 +114,48 @@ class GetTrans_new:
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
-        self.R_mat = R_mat
+        self.h_mat = h_mat
         self.R = R
         self.trans = trans
         self.T = self.delete_anomalies(trans)
         cap.release()
         #out.release()
         cv2.destroyAllWindows()
+
+    def detect_mid_point(self,frame,pt_src1,pt_src2):
+        #detect the mid point of a line, used in corner match
+        #step1: get the homography matrix
+        self.bridge = CvBridge()
+        self.pub1 = rospy.Publisher('camera/visible/image3', Image, queue_size=2)
+        motion_detector0 = ColorFilter()
+        frame0 = copy.deepcopy(frame)
+        # cv2.imshow('frame0',frame0)
+        frame1=motion_detector0.paper_filter(frame0)
+        image = self.bridge.cv2_to_imgmsg(frame1)
+        self.pub1.publish(image)
+        h_mat, (R,T), result_img1, img2= self.detect_new(frame1,side_view=1)
+        # print 'h_mat',h_mat
+
+        #step2: get pt_dst1 and pt_dst2
+        if h_mat is not None:
+            pt_src1.append(1)
+            pt_src2.append(1)
+            pt_src1 = np.array(pt_src1)
+            pt_src2 = np.array(pt_src2)
+            # print 'pts1',pt_src1
+            # print 'pts2',pt_src2
+            pt_dst1 = np.dot(h_mat,pt_src1)
+            pt_dst2 = np.dot(h_mat,pt_src2)
+
+            #step3: get the mid point
+            mid_point = [int((pt_dst1[0]+pt_dst2[0])/2),int((pt_dst1[1]+pt_dst2[1])/2),0]
+            ori_point = np.dot(h_mat,(0,0,1))
+            cv2.circle(frame, (int(mid_point[0]), int(mid_point[1])), 10, (0, 0, 255), 2)
+            cv2.circle(frame, (int(ori_point[0]), int(ori_point[1])), 10, (0, 255, 255), 2)
+
+            return mid_point,frame
+        else:
+            return None,None
 
     # Function to Detection Outlier on one-dimentional datasets.
     def delete_anomalies(self,data):
@@ -167,6 +207,122 @@ class GetTrans_new:
         trans1 = np.mean(np.array(new_data)[:,1])
         trans2 = np.mean(np.array(new_data)[:,2])
         return [trans0,trans1,trans2]
+
+    def detect_new(self, frame, side_view=0):
+        A = self.A
+        pts_src = copy.deepcopy(self.pts_src)
+        R, T = None, None
+        im_perspCorr = None # black_image (300,300,3)   np.zeros((300,300,3), np.uint8)
+        imgC = cv2.Canny(frame, 50, 60)
+        imgC = cv2.morphologyEx(imgC, cv2.MORPH_CLOSE, (3, 3))
+        (_,cont, _)=cv2.findContours(imgC.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # (_,cont, _) = cv2.findContours(imgC.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        # print 'cont num',len(cont)
+        frame = cv2.drawContours(frame,cont,-1,(0,0,255),3)
+        best_approx = None
+        lowest_error = float("inf")
+
+        #contour selection
+        for c in cont:
+            pts_dst = []
+            perim = cv2.arcLength(c, True)
+            approx = cv2.approxPolyDP(c, .01 * perim, True)
+            area = cv2.contourArea(c)
+
+            if len(approx) == len(self.pts_src):
+                right, error, new_approx = su.rightA(approx, 70,side_view) #80#change the thresh if not look vertically
+                # print(right)
+                new_approx = np.array(new_approx)
+                # print 'new approx',new_approx
+                if error < lowest_error and right:
+                    lowest_error = error
+                    best_approx = new_approx
+
+        if best_approx is not None:
+            cv2.drawContours(frame, [best_approx], 0, (255, 0, 0), 3)
+
+            for i in range(0, len(best_approx)):
+                pts_dst.append((best_approx[i][0][0], best_approx[i][0][1]))
+                # cv2.circle(frame, pts_dst[-1], 3, (i*30, 0, 255-i*20), 3)
+
+            if len(pts_dst) < 4: #at least 4 points are needed (not co-linear points)
+                #modify pts_dst
+                new_dst_point = (int((pts_dst[0][0]+pts_dst[1][0]+pts_dst[2][0])/3),int((pts_dst[0][1]+pts_dst[1][1]+pts_dst[2][1])/3))
+                pts_dst.append(pts_dst[2])
+                pts_dst[2] = new_dst_point
+                #modify pts_src
+                new_src_point = [int((pts_src[0][0]+pts_src[1][0]+pts_src[2][0])/3),int((pts_src[0][1]+pts_src[1][1]+pts_src[2][1])/3)]
+                pts_src.append(pts_src[2])
+                pts_src[2] = new_src_point
+
+            # center = su.line_intersect(pts_dst[0][0],pts_dst[0][1],pts_dst[2][0],pts_dst[2][1],
+            #                            pts_dst[1][0],pts_dst[1][1],pts_dst[3][0],pts_dst[3][1])
+            # cv2.circle(frame, (int(center[0]), int(center[1])), 5, (0, 0, 255), 2)
+
+            # h1, status = cv2.findHomography(np.array(pts_src1).astype(float), np.array(pts_dst).astype(float),cv2.RANSAC,5.0)
+            h, status = cv2.findHomography(np.array(pts_src).astype(float), np.array(pts_dst).astype(float))
+            # h2 = su.H_from_points(np.array(pts_src1).astype(float), np.array(pts_dst).astype(float))
+
+            center1 = np.dot(h,(0,0,1))
+            # print 'center1',center1
+            cv2.circle(frame, (int(center1[0]), int(center1[1])), 10, (0, 0, 255), 2)
+            center2 = np.dot(h,(145,0,1))
+            print 'center2',center2
+            # cv2.circle(frame, (int(center2[0]), int(center2[1])), 10, (0, 255, 0), 2)
+            center3 = np.dot(h,(0,145,1))
+            print 'center3',center3
+            # cv2.circle(frame, (int(center3[0]), int(center3[1])), 10, (0, 255, 255), 2)
+            # print 'status',status
+
+            (R, T) = su.decHomography(A, h)
+            ########liwei: change the decompose homography method and do one more transformation (from pixel frame to camera frame)
+            num, Rs, Ts, Ns = cv2.decomposeHomographyMat(h, A)
+            '''
+            num possible solutions will be returned.
+            Rs contains a list of the rotation matrix.
+            Ts contains a list of the translation vector.
+            Ns contains a list of the normal vector of the plane.
+            '''
+            Translation = Ts[0]
+            # print 'num',num
+            # print 'Ts',Ts
+            # u0 = A[0,2]
+            # v0 = A[1,2]
+            # f = A[0,0]
+            # Translation = [Ts[0][2]/f*(Ts[0][0]),Ts[0][2]/f*(Ts[0][1]),Ts[0][2]]
+            # print 'R',R
+            # print 'RS',Rs
+            # print 'tranlation3',Translation
+            Rot = su.decRotation(np.matrix(Rs[3]))
+            ########liwei: change the decompose homography method and do one more transformation (from pixel frame to camera frame)
+
+            zR = np.matrix([[math.cos(Rot[2]), -math.sin(Rot[2])], [math.sin(Rot[2]), math.cos(Rot[2])]])
+            cv2.putText(imgC, 'rX: {:0.2f} rY: {:0.2f} rZ: {:0.2f}'.format(Rot[0] * 180 / np.pi, Rot[1] * 180 / np.pi, Rot[2] * 180 / np.pi), (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
+            cv2.putText(imgC, 'tX: {:0.2f} tY: {:0.2f} tZ: {:0.2f}'.format(Translation[0][0], Translation[1][0], Translation[2][0]), (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255))
+
+            # get perspective corrected paper
+            pts1 = pts_dst
+            half_len = int(abs(pts_src[0][0]))
+            pts2 = pts_src + np.ones((4,2),dtype=int)*half_len
+            M = cv2.getPerspectiveTransform(np.float32(pts1),np.float32(pts2))
+            img_size = (half_len*2, half_len*2)
+            im_perspCorr = cv2.warpPerspective(frame,M,img_size)
+
+        # merged_img = np.concatenate((frame, cv2.cvtColor(imgC, cv2.COLOR_BAYER_GB2BGR)), axis=1)
+        # merged_img = np.concatenate((frame, ori_img), axis=1)
+        # merged_img = im_perspCorr
+
+        if R is not None:
+            Rotation = Rot
+            # Translation = (T[0, 0], T[0, 1], T[0, 2])
+            # print 'translation',Translation
+
+            return h,(Rotation, Translation), frame, im_perspCorr
+            # return R, (Rotation, Translation), merged_img
+        else:
+            return None, (None, None), frame, None
+            # return None,(None, None), merged_img
+
 
     def detect(self, frame, ori_img):
 
@@ -284,7 +440,7 @@ class GetTrans_new:
             # Translation = (T[0, 0], T[0, 1], T[0, 2])
             # print 'translation',Translation
 
-            return R,(Rotation, Translation), merged_img, im_perspCorr
+            return h,(Rotation, Translation), merged_img, im_perspCorr
             # return R, (Rotation, Translation), merged_img
         else:
             return None, (None, None), merged_img, None

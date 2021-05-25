@@ -2,9 +2,10 @@
 import cv2
 import numpy as np
 import math
+import copy
 # Gets passed an approx contour list and finds if all the angles are 90 degrees
 
-def rightA(approx, thresh):
+def rightA(approx, thresh, side_view):
     right = True
     error = 0
     AL = len(approx)
@@ -35,9 +36,8 @@ def rightA(approx, thresh):
             dif = dif0
         else:
             dif=dif1
-            # print 'angle',angle
 
-        if dif < thresh and dif == dif0 and len(new_approx)==0 and len(approx)==3:
+        if dif < thresh and dif == dif0 and len(new_approx)==0 and len(approx)==3 and side_view==0:
             # print 'angle dif',angle
             # new_approx.append((approx[(i + 2) % AL]).tolist())
             # new_approx.append((approx[i % AL]).tolist())
@@ -48,11 +48,19 @@ def rightA(approx, thresh):
         elif len(approx)>3:
             new_approx = approx
 
+        elif side_view == 1 and len(approx)==3 and len(new_approx)==0:
+            temp = copy.deepcopy(np.array(approx[0])[:,0])
+            temp = temp.tolist()
+            x_min_index = temp.index(min(temp))
+            new_approx.append((approx[x_min_index % AL]).tolist())
+            new_approx.append((approx[(x_min_index + 1) % AL]).tolist())
+            new_approx.append((approx[(x_min_index+2) % AL]).tolist())
+
         error += dif
 
         if dif > thresh:
             right = False
-
+    # print 'new approx',new_approx
     return (right, error / AL, new_approx)
 
 def H_from_points(fp, tp):
