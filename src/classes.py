@@ -47,7 +47,7 @@ class ColorFilter:
 
     # red_mask = cv2.inRange(image,lower_red,upper_red)
     # ret, thresh = cv2.threshold(red_mask, 50, 255, 0)
-    # im2, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     # cv2.drawContours(image, contours, -1, (0,255,0), 3)
 
     # white_mask1 = cv2.inRange(image, lower_white, upper_white)
@@ -2509,7 +2509,7 @@ class Predictor:
             #step1: get facets contours (findContours)
             gray = cv2.cvtColor(image,cv2.COLOR_RGB2GRAY)
             ret, binary = cv2.threshold(gray,127,255,cv2.THRESH_BINARY)
-            _, contours, hierarchy = cv2.findContours(binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+            contours, hierarchy = cv2.findContours(binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
             image0 = cv2.drawContours(image0,contours,-1,(0,0,255),3)
             # print 'contour nums',len(contours)
 
@@ -2517,10 +2517,18 @@ class Predictor:
             for i in range(1,len(contours)):
                 perim = cv2.arcLength(contours[i], True)
                 approx = cv2.approxPolyDP(contours[i], .1 * perim, True)
-                # print 'approx',approx
                 approx = approx.reshape(len(approx),2)
+                new = np.ones(len(approx))
+                new = new.reshape(len(approx),1)
+                approx = np.append(approx,new,axis=1)
+                approx = approx.T
                 approx = approx.tolist()
-                facet_pts.setdefault(str(i),approx)
+                mat=np.matrix([[0,1,-145],[-1,0,145],[0,0,1]])
+                new_approx = np.dot(mat,approx)
+                new_approx = new_approx[:2,:]
+                new_approx = new_approx.T
+                new_approx = new_approx.tolist()
+                facet_pts.setdefault(str(i),new_approx)
                 facet_colors.setdefault(str(i),0)
 
             #step3: get new contour information and construct state_dict
@@ -2580,7 +2588,7 @@ class Predictor:
             #step5: new contour image
             gray = cv2.cvtColor(image,cv2.COLOR_RGB2GRAY)
             ret, binary = cv2.threshold(gray,127,255,cv2.THRESH_BINARY)
-            _, contours, hierarchy = cv2.findContours(binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+            contours, hierarchy = cv2.findContours(binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
             image = cv2.drawContours(image,contours,-1,(0,0,255),3)
             # print 'state_new',self.state
             return image
@@ -2654,7 +2662,7 @@ class Predictor:
         #step4: approx the new contour and get new contour
         gray = cv2.cvtColor(canvas,cv2.COLOR_BGR2GRAY)
         ret, binary = cv2.threshold(gray,127,255,cv2.THRESH_BINARY)
-        _, contours, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         canvas = cv2.drawContours(canvas,contours,-1,(0,0,255),3)
         cv2.imshow('canvas1',canvas)
         # print 'contour nums',len(contours)
@@ -2691,7 +2699,7 @@ class Predictor:
         #step1: findContours
         gray = cv2.cvtColor(image,cv2.COLOR_RGB2GRAY)
         ret, binary = cv2.threshold(gray,127,255,cv2.THRESH_BINARY)
-        _, contours, hierarchy = cv2.findContours(binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        contours, hierarchy = cv2.findContours(binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
         image = cv2.drawContours(image,contours,-1,(0,0,255),3)
         # print 'contour nums',len(contours)
         # cv2.imshow('image',image)
@@ -2699,12 +2707,18 @@ class Predictor:
         #step2: approximate and store contour points
         perim = cv2.arcLength(contours[0], True)
         approx = cv2.approxPolyDP(contours[0], .1 * perim, True)
-        # print 'approx',approx
         approx = approx.reshape(len(approx),2)
+        new = np.ones(len(approx))
+        new = new.reshape(len(approx),1)
+        approx = np.append(approx,new,axis=1)
+        approx = approx.T
         approx = approx.tolist()
-        # print 'approx reshape',approx
-        return approx
-
+        mat=np.matrix([[0,1,-145],[-1,0,145],[0,0,1]])
+        new_approx = np.dot(mat,approx)
+        new_approx = new_approx[:2,:]
+        new_approx = new_approx.T
+        new_approx = new_approx.tolist()
+        return new_approx
 
     def get_colors(self,step,reflect):
         #get colors for corner matching, return the upper color and lower color
@@ -2743,6 +2757,7 @@ class Predictor:
         current_crease = copy.deepcopy(self.current_crease)
         state = 'state'+str(step+1)
         facet_pts = copy.deepcopy(self.state[state]['facet_pts'])
+        # print 'facet pts',facet_pts
         a,b,c = ut.lineToFunction(current_crease)
         crease_func = [a,b,c]
         left_facets,right_facets = ut.get_side_facets(current_crease,facet_pts)
