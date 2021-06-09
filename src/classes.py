@@ -409,7 +409,7 @@ class GetTrans_new:
             # img_warp = cv2.warpPerspective(frame0, h, (frame0.shape[1], frame0.shape[0]))
             # half_len = int(abs(pts_src[0][0]))
             # pts2 = pts_src + np.ones((4,2),dtype=int)*half_len
-            M = cv2.getPerspectiveTransform(np.float32(pts1),np.float32(pts2))
+            M = cv2.getPerspectiveTransform(np.float32(pts1[:4]),np.float32(pts2[:4]))
             # img_size = (half_len*2, half_len*2)
             img_size = (290,290)
             im_perspCorr = cv2.warpPerspective(copy.deepcopy(frame),M,img_size)
@@ -2381,7 +2381,7 @@ class Predictor:
 
 class ParameterGenerator:
     #generate parameters for robotic execution function
-    def __init__(self,state):
+    def updateState(self,state):
         self.state=state
 
     def analysis(self,step):
