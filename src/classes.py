@@ -2132,8 +2132,8 @@ class Predictor:
                     facet_colors_new[facet]=colors
 
             #step3: get new contour information and construct state_dict
-            contour_pts = self.get_new_contour(step)
-            state_new = {'facet_pts':copy.deepcopy(facet_pts_new),'facet_colors':copy.deepcopy(facet_colors_new),'contour_pts':contour_pts}
+            contour_pts, contour_img = self.get_new_contour(step)
+            state_new = {'facet_pts':copy.deepcopy(facet_pts_new),'facet_colors':copy.deepcopy(facet_colors_new),'contour_pts':contour_pts, 'contour_image':contour_img}
             self.state.setdefault(state1,state_new)
             print 'state new',state_new
 
@@ -2261,7 +2261,7 @@ class Predictor:
             if angle==1:
                 new_pts_src1.remove(pt2)
 
-        return new_pts_src1
+        return new_pts_src1,mask
 
     def get_new_contour_by_image(self,image):
         #this is to get contour of the image
