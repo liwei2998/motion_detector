@@ -128,7 +128,7 @@ def if_point_in_overlap_facets(point,points_lists,dis_thresh=10,area_thresh=100)
                 poly2 = Polygon(line2)
                 poly2=poly2.buffer(0)
                 area = poly1.intersection(poly2).area
-                print 'area',area
+                # print 'area',area
                 if area>area_thresh:
                     return 1
     return 0

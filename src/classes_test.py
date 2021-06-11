@@ -2056,21 +2056,40 @@ class Predictor:
             ret, binary = cv2.threshold(gray,127,255,cv2.THRESH_BINARY)
             contours, hierarchy = cv2.findContours(binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
             image0 = cv2.drawContours(image0,contours,-1,(0,0,255),3)
+            # cv2.imshow('image0',image0)
+            # cv2.waitKey(0)
+            # print 'contour nums',len(contours)
+            ###########test facets
+            # for i in range(0,len(contours)-1):
+            #     img=copy.deepcopy(image0)
+            #     img = cv2.drawContours(img,contours,i,(0,0,255),3)
+            #     cv2.imshow('image0',img)
+            #     print 'i',i
+            #     perim = cv2.arcLength(contours[i], True)
+            #     approx = cv2.approxPolyDP(contours[i], .05 * perim, True)
+            #     print 'approx',approx
+            #     cv2.waitKey(0)
 
             #step2: get and store points, color of each contour
             for i in range(0,len(contours)-1):
                 perim = cv2.arcLength(contours[i], True)
                 approx = cv2.approxPolyDP(contours[i], .05 * perim, True)
+                # print 'facet approx',str(i),approx
                 new_approx = ut.frame_transform(approx,self.halfX,self.halfY)
                 facet_pts.setdefault(str(i),new_approx)
                 facet_colors.setdefault(str(i),0)
 
             #step3: get new contour information and construct state_dict
+            # contour_pts = self.get_new_contour_by_image(image1)
             contour_pts = copy.deepcopy(self.pts_src)
             contour_pts = contour_pts.tolist()
+            # print 'facet pts',facet_pts
+            # print 'contour pts',contour_pts
             state1 = {'facet_pts':copy.deepcopy(facet_pts),'facet_colors':copy.deepcopy(facet_colors),'contour_pts':contour_pts}
             self.state.setdefault('state1',state1)
             _,contour_img = self.get_new_contour(step)
+            cv2.imshow('contour image',contour_img)
+            cv2.waitKey(0)
             state1['contour_image'] = contour_img
 
             #step4: get match info and add it into the state dict
@@ -2081,6 +2100,8 @@ class Predictor:
             print 'state.match',self.state['state1']['match_info']
             print 'state.contour',self.state['state1']['contour_pts']
             print 'self.grasp_method',self.state['state1']['grasp_method']
+            # cv2.imshow('image step0',image0)
+            # cv2.waitKey(0)
             return image0
 
         else:
@@ -2091,6 +2112,7 @@ class Predictor:
             state = 'state'+str(step)
             facet_pts = copy.deepcopy(self.state[state]['facet_pts'])
             left_facets,_ = ut.get_side_facets(current_crease,facet_pts)
+            print 'left facet',left_facets
             state1 = 'state'+str(step+1)
             facet_pts_new = copy.deepcopy(self.state[state]['facet_pts'])
             facet_colors_new = copy.deepcopy(self.state[state]['facet_colors'])
@@ -2100,20 +2122,25 @@ class Predictor:
                 pts = copy.deepcopy(self.state[state]['facet_pts'][facet])
                 colors =copy.deepcopy(self.state[state]['facet_colors'][facet])
                 if facet in left_facets:
+                    # print 'facet',facet,pts
                     #reverse point and color+1
                     reversed_pts = []
                     for pt in pts:
+                        # print 'pt',pt
                         reversed_pt = ut.reversePoint(current_crease,pt)
                         reversed_pts.append(reversed_pt)
+                        # print 'reversed pt',reversed_pt
                     colors = colors+1
                     facet_pts_new[facet]=reversed_pts
                     facet_colors_new[facet]=colors
 
             #step3: get new contour information and construct state_dict
             contour_pts, contour_img = self.get_new_contour(step)
+            cv2.imshow('contour image i',contour_img)
+            cv2.waitKey(0)
             state_new = {'facet_pts':copy.deepcopy(facet_pts_new),'facet_colors':copy.deepcopy(facet_colors_new),'contour_pts':contour_pts, 'contour_image':contour_img}
             self.state.setdefault(state1,state_new)
-            # print 'state new',state_new
+            print 'state new',state_new
 
             #step4: get match info and add it into the state dict
             self.crease_update(self.creases[step])
@@ -2130,6 +2157,9 @@ class Predictor:
             ret, binary = cv2.threshold(gray,127,255,cv2.THRESH_BINARY)
             contours, hierarchy = cv2.findContours(binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
             image = cv2.drawContours(image,contours,-1,(0,0,255),3)
+            # cv2.imshow('image step i',image)
+            # cv2.waitKey(0)
+            # print 'state_new',self.state
             return image
 
     def get_new_contour(self,step):
@@ -2158,12 +2188,15 @@ class Predictor:
         state = 'state'+str(step)
         pts = copy.deepcopy(self.state[state]['contour_pts'])
         a,b,c = ut.lineToFunction(current_crease)
+        # print 'current crease',current_crease
 
         #step1: get pts at the left of the crease
         left_pts = []
         right_pts = []
         for pt in pts:
+            # print 'pt',pt
             product = a*pt[0]+b*pt[1]+c
+            # print 'product',product
             if product<0 and abs(product)>4000:
                 left_pts.append(pt)
             elif product>0 and abs(product)>4000:
@@ -2188,15 +2221,26 @@ class Predictor:
             reversed_left_pts.append(reversed_pt)
         right_pts=ut.ccw(right_pts)
         reversed_left_pts=ut.ccw(reversed_left_pts)
+        # print 'reversed left pts',reversed_left_pts
+        # print 'right pts',right_pts
 
         #step3: compare the two pts set and determine the new contour
         poly1 = Polygon(right_pts)
         poly2 = Polygon(reversed_left_pts)
         polygon = [poly1,poly2]
+        # contour0 = unary_union(polygon)
         contour = cascaded_union(polygon)
+        # print 'countour',contour
+        # boundary = gpd.GeoSeries(cascaded_union(polygon))
+        # boundary.plot(color = 'red')
+        # plt.show()
         new_pts_src = np.array(contour.exterior.coords)
+        # new_pts_src = np.array(list(set([tuple(t) for t in new_pts_src])))
         new_pts_src = new_pts_src.tolist()
+        # new_pts_src = np.array(new_pts_src)
+        # print 'new pts src',new_pts_src
         new_pts_src_visuliaze = ut.frame_transform(copy.deepcopy(new_pts_src),self.halfX,self.halfY,inverse=1)
+        # print 'new visuliaze',new_pts_src_visuliaze
         mask=copy.deepcopy(self.original_image)
         mask[:]=(0,0,0)
         s=new_pts_src_visuliaze[0]
@@ -2210,10 +2254,24 @@ class Predictor:
                 continue
             cv2.line(mask,s,e,(0,255,0),8)
         cv2.line(mask,e,(int(new_pts_src_visuliaze[0][0]),int(new_pts_src_visuliaze[0][1])),(0,255,0),8)
+        # cv2.imshow('mask0',mask)
 
-        #step4: re-arrange pts src
+        #step4: approx the new contour and get new contour
+        # gray = cv2.cvtColor(mask,cv2.COLOR_BGR2GRAY)
+        # ret, binary = cv2.threshold(gray,127,255,cv2.THRESH_BINARY)
+        # contours, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # mask = cv2.drawContours(mask,contours,-1,(0,0,255),3)
+        # # cv2.imshow('contour',mask)
+        # # cv2.waitKey(0)
+        # # print 'contour nums',len(contours)
+        # perim = cv2.arcLength(contours[0], True)
+        # approx = cv2.approxPolyDP(contours[0], .1 * perim, True)
+        # approx = approx.reshape(len(approx),2)
+        # approx = approx.tolist()
+        # print 'approx in contour',approx
         new_pts_src=new_pts_src[:len(new_pts_src)-1]
         new_pts_src=ut.ccw(new_pts_src)
+        # print 'new pts src',new_pts_src
 
         #step5: delete points that are colinear (3 points in 1 line)
         new_pts_src1=copy.deepcopy(new_pts_src)
@@ -2286,9 +2344,14 @@ class Predictor:
         a,b,c = ut.lineToFunction(current_crease)
         crease_func = [a,b,c]
         left_facets,right_facets = ut.get_side_facets(current_crease,facet_pts)
+        # print 'current crease match',current_crease
+        # print 'left facet',left_facets
+        # print 'right facet',right_facets
+        # print 'facet pts match',facet_pts
         grasp_point_info = ut.findFurthestPointInfo(crease_func,facet_pts,left_facets) #format:[point,distance]
         pts_src0 = np.array(grasp_point_info)[:,0] #grasp point src
         pts_src0 = pts_src0.tolist()
+        # print 'corner match: pts_src0',pts_src0
 
         #step2: find the target point src
         pts_src1 = []
